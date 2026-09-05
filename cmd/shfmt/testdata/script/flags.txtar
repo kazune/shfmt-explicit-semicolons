@@ -8,6 +8,9 @@ stderr 'Utilities' # definitely includes our help text
 exec shfmt --help
 stderr 'usage: shfmt'
 
+! exec shfmt -se
+stderr 'flag provided but not defined'
+
 exec shfmt -version
 stdout 'devel|v3'
 ! stderr .
@@ -126,6 +129,10 @@ stdin flags-input
 exec shfmt --indent 2
 cmp stdout flags-output.indent-golden
 
+stdin explicit-semicolons-input
+exec shfmt --explicit-semicolons
+cmp stdout flags-output.explicit-semicolons-golden
+
 stdin flags-input
 exec shfmt -bn
 cmp stdout flags-output.binary-next-line-golden
@@ -209,6 +216,16 @@ foo() {
 
 	keep    padding
 }
+-- explicit-semicolons-input --
+foo
+if cond; then
+	bar
+fi
+-- flags-output.explicit-semicolons-golden --
+foo;
+if cond; then
+	bar;
+fi;
 -- flags-output.indent-golden --
 foo() {
   bar &&

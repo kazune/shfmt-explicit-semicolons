@@ -942,6 +942,80 @@ func TestPrintBinaryNextLine(t *testing.T) {
 	}
 }
 
+func TestPrintExplicitSemicolons(t *testing.T) {
+	t.Parallel()
+	tests := [...]struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "simple-statements",
+			in:   "foo\nbar",
+			want: "foo;\nbar;\n",
+		},
+		{
+			name: "binary-and",
+			in:   "foo &&\nbar\nbaz",
+			want: "foo &&\n\tbar;\nbaz;\n",
+		},
+		{
+			name: "pipeline",
+			in:   "foo |\nbar\nbaz",
+			want: "foo |\n\tbar;\nbaz;\n",
+		},
+		{
+			name: "if",
+			in:   "if cond; then\nfoo\nelse\nbar\nfi",
+			want: "if cond; then\n\tfoo;\nelse\n\tbar;\nfi;\n",
+		},
+		{
+			name: "background",
+			in:   "foo &\nbar",
+			want: "foo &\nbar;\n",
+		},
+		{
+			name: "case",
+			in:   "case x in\nx) foo ;;\nesac",
+			want: "case x in\nx) foo; ;;\nesac;\n",
+		},
+		{
+			name: "heredoc",
+			in:   "foo <<EOF\nbody\nEOF\nbar",
+			want: "foo <<EOF;\nbody\nEOF\nbar;\n",
+		},
+	}
+	parser := NewParser(KeepComments(true))
+	format := func(t *testing.T, printer *Printer, input string) string {
+		t.Helper()
+		prog, err := parser.Parse(strings.NewReader(input), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := strPrint(printer, prog)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			defaultOutput := format(t, NewPrinter(), tc.in)
+			if got := format(t, NewPrinter(ExplicitSemicolons(false)), tc.in); got != defaultOutput {
+				t.Fatalf("ExplicitSemicolons(false) changed the default output:\nwant:\n%q\ngot:\n%q", defaultOutput, got)
+			}
+
+			got := format(t, NewPrinter(ExplicitSemicolons(true)), tc.in)
+			if got != tc.want {
+				t.Fatalf("ExplicitSemicolons(true) mismatch:\nwant:\n%q\ngot:\n%q", tc.want, got)
+			}
+			if gotAgain := format(t, NewPrinter(ExplicitSemicolons(true)), got); gotAgain != got {
+				t.Fatalf("formatting was not idempotent:\nwant:\n%q\ngot:\n%q", got, gotAgain)
+			}
+		})
+	}
+}
+
 func TestPrintSwitchCaseIndent(t *testing.T) {
 	t.Parallel()
 	tests := [...]printCase{
@@ -1348,6 +1422,7 @@ func TestPrintOptionsNotBroken(t *testing.T) {
 		name string
 		list []PrinterOption
 	}{
+		{"ExplicitSemicolons", []PrinterOption{ExplicitSemicolons(true)}},
 		{"Minify", []PrinterOption{Minify(true)}},
 		{"SingleLine", []PrinterOption{SingleLine(true)}},
 	} {
