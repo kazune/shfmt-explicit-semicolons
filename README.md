@@ -1,188 +1,94 @@
-# sh
+# shfmt with explicit semicolons
 
-[![Go Reference](https://pkg.go.dev/badge/mvdan.cc/sh/v3.svg)](https://pkg.go.dev/mvdan.cc/sh/v3)
+This repository is a fork of [mvdan/sh](https://github.com/mvdan/sh). It adds
+an option to make `shfmt` emit semicolons at the end of shell statements.
 
-A shell parser, formatter, and interpreter.
-Supports [POSIX Shell], [Bash], [Zsh], and [mksh]. Requires Go 1.26 or later.
+The default behavior remains unchanged: without the option described below,
+the formatter behaves like upstream `shfmt`.
 
-### Quick start
+## Upstream
 
-To parse shell scripts, inspect them, and print them out,
-see the [syntax package](https://pkg.go.dev/mvdan.cc/sh/v3/syntax).
+- Repository: [mvdan/sh](https://github.com/mvdan/sh)
+- Go module: [`mvdan.cc/sh/v3`](https://pkg.go.dev/mvdan.cc/sh/v3)
 
-For high-level operations like performing shell expansions on strings,
-see the [shell package](https://pkg.go.dev/mvdan.cc/sh/v3/shell).
+## Differences from upstream
 
-To interpret or run shell scripts,
-see the [interp package](https://pkg.go.dev/mvdan.cc/sh/v3/interp).
+### `--explicit-semicolons`
 
-### shfmt
+When enabled, `shfmt` appends `;` to each shell statement that does not already
+have a terminator. The semicolon is added to the end of the statement, rather
+than after each command within an `&&`, `||`, or pipeline expression. It can
+appear immediately before a line break or a here-document body.
 
-	go install mvdan.cc/sh/v3/cmd/shfmt@latest
-
-`shfmt` formats shell programs. See [canonical.sh](syntax/canonical.sh) for a
-quick look at its default style. For example:
-
-	shfmt -l -w script.sh
-
-For more information, see [its manpage](cmd/shfmt/shfmt.1.scd), which can be
-viewed directly as Markdown or rendered with [scdoc].
-
-Packages are available on [Alpine], [Arch], [Debian], [Docker], [Fedora], [FreeBSD],
-[Homebrew], [MacPorts], [NixOS], [OpenSUSE], [PyPI], [Scoop], [Snapcraft], [Void] and [webi].
-
-### Sponsoring
-
-If this project saves you or your company time, consider
-[sponsoring me on GitHub](https://github.com/sponsors/mvdan).
-Monthly tiers include benefits like your logo on a README,
-prioritized issues, or direct support in your company's chat app.
-One-time tiers offer a call about one of my projects
-or a Go consulting or mentorship session.
-
-### Contributing
-
-Bug reports and feature requests should be filed as detailed issues,
-ideally with an example which reproduces the bug or shows what feature you're after.
-
-Unless you're an active user or contributor to the project, drive-by AI patches
-are not helpful. File detailed issues instead.
-
-### Caveats
-
-* When indexing Bash associative arrays, always use quotes. The static parser
-  will otherwise have to assume that the index is an arithmetic expression.
+Statements that end with `&`, `|&`, or `&|` keep those terminators, and existing
+semicolons are not duplicated.
 
 ```sh
-$ echo '${array[spaced string]}' | shfmt
-<standard input>:1:16: not a valid arithmetic operator: `string`
-$ echo '${array[weird!key]}' | shfmt
-<standard input>:1:8: reached `!` without matching `[` with `]`
-$ echo '${array[dash-string]}' | shfmt
-${array[dash - string]}
+foo;
+if cond; then
+	bar;
+fi;
 ```
 
-* `$((` and `((` ambiguity is not supported. Backtracking would complicate the
-  parser and make streaming support via `io.Reader` impossible. The POSIX spec
-  recommends to [space the operands][posix-ambiguity] if `$( (` is meant.
+The option is available through:
+
+- CLI: `shfmt --explicit-semicolons`
+- EditorConfig: `explicit_semicolons = true`
+- Go API: `syntax.ExplicitSemicolons(true)`
+
+This fork currently keeps the option long-only; there is no short flag.
+
+## Why this fork exists
+
+Some workflows benefit from making command termination explicit in formatted
+shell code. This can be particularly useful when formatting shell commands
+embedded in Makefiles.
+
+This fork provides that output style while keeping the rest of its behavior
+close to upstream.
+
+## Usage
+
+Install this fork from a checkout of the repository:
 
 ```sh
-$ echo '$((foo); (bar))' | shfmt
-1:1: reached ) without matching $(( with ))
+git clone https://github.com/kazune/shfmt-explicit-semicolons.git
+cd shfmt-explicit-semicolons
+go install ./cmd/shfmt
 ```
 
-* `export`, `let`, and `declare` are parsed as keywords.
-  This allows statically building their syntax tree,
-  as opposed to keeping the arguments as a slice of words.
-  It is also required to support `declare foo=(bar)`.
+Format a file with explicit semicolons:
 
-* The entire library is written in pure Go, which limits how closely the
-  interpreter can follow POSIX Shell and Bash semantics.
-  For example, Go does not support forking its own process, so subshells
-  use a goroutine instead, meaning that real PIDs and file descriptors
-  cannot be used directly.
+```sh
+shfmt --explicit-semicolons script.sh
+```
 
-### Formatting FAQs
+To enable the option through EditorConfig:
 
-* The formatter cannot be disabled for ranges of lines; most users wanting this
-  are working around a bug or they don't like how a piece of code is formatted.
-  Instead, search the issue tracker and file a new issue if necessary.
-  Formatting of partial files leads to lots of edge cases and complexity
-  which this project has no resources for, nor interest in, getting into.
+```ini
+explicit_semicolons = true
+```
 
-* We avoid adding more formatting options where possible. Each added flag interacts
-  with all others, multiplying the human cost of development, maintenance, testing,
-  and properly documenting the behavior for end users.
+The ordinary `shfmt` usage and all other formatting options are documented
+upstream.
 
-* The true value in a formatter is consistency, especially for teams of developers.
-  We do not aim to satisfy every developer's personal choice of optimal formatting.
+## Upstream documentation
 
-### JavaScript
+- [Upstream README]
+- [`shfmt` man page][upstream man page]
+- [Syntax package documentation][syntax package]
+- [Shell package documentation][shell package]
+- [Interpreter package documentation][interp package]
 
-The parser and formatter are available as a third party npm package called [sh-syntax],
-which bundles a version of this library compiled to WASM.
+## Upstream tracking
 
-Previously, we maintained an npm package called [mvdan-sh] which used GopherJS
-to bundle a JS version of this library. That npm package is now archived
-given its poor performance and GopherJS not being as actively developed.
-Any existing or new users should look at [sh-syntax] instead.
+This fork follows upstream changes periodically. Fork-specific changes are
+kept limited to the explicit-semicolon functionality. If equivalent support
+is accepted upstream, this fork may be retired or reduced to a compatibility
+branch.
 
-### Docker
-
-All release tags are published via [Docker], such as `v3.5.1`.
-The latest stable release is currently published as `v3`,
-and the latest development version as `latest`.
-The images only include `shfmt`; `-alpine` variants exist on Alpine Linux.
-
-To build a Docker image, run:
-
-	docker build -t my:tag -f cmd/shfmt/Dockerfile .
-
-To use a Docker image, run:
-
-	docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/mnt" -w /mnt my:tag <shfmt arguments>
-
-### Related projects
-
-The following editor integrations wrap `shfmt`:
-
-- [BashSupport-Pro] - Bash plugin for JetBrains IDEs
-- [dockerfmt] - Dockerfile formatter using shfmt
-- [intellij-shellscript] - Intellij Jetbrains `shell script` plugin
-- [micro] - Editor with a built-in plugin
-- [neoformat] - (Neo)Vim plugin
-- [vscode-shfmt] - VS Code plugin
-- [shfmt.el] - Emacs package
-- [Trunk] - Universal linter, available as a CLI, VS Code plugin, and GitHub action
-
-Other noteworthy integrations include:
-
-- [modd] - A developer tool that responds to filesystem changes
-- [prettier-plugin-sh] - [Prettier] plugin using [sh-syntax]
-- [sh-checker] - A GitHub Action that performs static analysis for shell scripts
-- [mdformat-shfmt] - [mdformat] plugin to format shell scripts embedded in Markdown with shfmt
-- [pre-commit-shfmt] - [pre-commit] shfmt hook
-- [tesh] - Run scripts with mocks, assertions, and coverage
-
-[alpine]: https://pkgs.alpinelinux.org/packages?name=shfmt
-[arch]: https://archlinux.org/packages/extra/x86_64/shfmt/
-[bash]: https://www.gnu.org/software/bash/
-[BashSupport-Pro]: https://www.bashsupport.com/manual/editor/formatter/
-[debian]: https://tracker.debian.org/pkg/golang-mvdan-sh
-[docker]: https://hub.docker.com/r/mvdan/shfmt/
-[dockerfmt]: https://github.com/reteps/dockerfmt
-[editorconfig]: https://editorconfig.org/
-[examples]: https://pkg.go.dev/mvdan.cc/sh/v3/syntax#pkg-examples
-[fedora]: https://packages.fedoraproject.org/pkgs/golang-mvdan-sh-3/shfmt/
-[freebsd]: https://www.freshports.org/devel/shfmt
-[homebrew]: https://formulae.brew.sh/formula/shfmt
-[intellij-shellscript]: https://www.jetbrains.com/help/idea/shell-scripts.html
-[macports]: https://ports.macports.org/port/shfmt/details/
-[mdformat-shfmt]: https://github.com/hukkin/mdformat-shfmt
-[mdformat]: https://github.com/executablebooks/mdformat
-[micro]: https://micro-editor.github.io/
-[mksh]: http://www.mirbsd.org/mksh.htm
-[modd]: https://github.com/cortesi/modd
-[mvdan-sh]: https://www.npmjs.com/package/mvdan-sh
-[neoformat]: https://github.com/sbdchd/neoformat
-[nixos]: https://github.com/NixOS/nixpkgs/blob/HEAD/pkgs/tools/text/shfmt/default.nix
-[OpenSUSE]: https://build.opensuse.org/package/show/openSUSE:Factory/shfmt
-[posix shell]: https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html
-[posix-ambiguity]: https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html#tag_18_06_03
-[pre-commit]: https://pre-commit.com
-[pre-commit-shfmt]: https://github.com/scop/pre-commit-shfmt
-[prettier-plugin-sh]: https://github.com/un-ts/prettier/tree/master/packages/sh
-[prettier]: https://prettier.io
-[PyPI]: https://pypi.org/project/shfmt-py/
-[scdoc]: https://sr.ht/~sircmpwn/scdoc/
-[scoop]: https://github.com/ScoopInstaller/Main/blob/HEAD/bucket/shfmt.json
-[sh-checker]: https://github.com/luizm/action-sh-checker
-[sh-syntax]: https://github.com/un-ts/sh-syntax
-[shfmt.el]: https://github.com/purcell/emacs-shfmt/
-[snapcraft]: https://snapcraft.io/shfmt
-[tesh]: https://github.com/feloy/tesh
-[trunk]: https://trunk.io/check
-[void]: https://github.com/void-linux/void-packages/blob/HEAD/srcpkgs/shfmt/template
-[vscode-shfmt]: https://marketplace.visualstudio.com/items?itemName=mkhl.shfmt
-[webi]: https://webinstall.dev/shfmt/
-[Zsh]: https://www.zsh.org/
+[Upstream README]: https://github.com/mvdan/sh#readme
+[upstream man page]: https://github.com/mvdan/sh/blob/master/cmd/shfmt/shfmt.1.scd
+[syntax package]: https://pkg.go.dev/mvdan.cc/sh/v3/syntax
+[shell package]: https://pkg.go.dev/mvdan.cc/sh/v3/shell
+[interp package]: https://pkg.go.dev/mvdan.cc/sh/v3/interp
